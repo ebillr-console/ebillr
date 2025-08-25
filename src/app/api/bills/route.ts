@@ -44,8 +44,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  // ✅ Fixed: safe content-type check
-  if (!request.headers.get("content-type")?.includes("application/json")) {
+  // Validate content type
+  const contentType = request.headers.get("content-type") || "";
+  if (!contentType || !contentType.includes("application/json")) {
     return NextResponse.json(
       { error: "Unsupported Media Type" },
       { status: 415 }
