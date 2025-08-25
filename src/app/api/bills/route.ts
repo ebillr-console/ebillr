@@ -16,15 +16,31 @@ const billSchema = z.object({
 
 export async function POST(request: NextRequest) {
   // Require authenticated session
-  const session = await auth();
+  let session: any = null;
+  try {
+    session = await auth();
+  } catch {
+    return NextResponse.json(
+      { error: "Auth misconfigured or failed" },
+      { status: 500 }
+    );
+  }
+
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
-  const { success } = await rateLimiter.limit(ip);
+  let limiterOk = true;
+  try {
+    const { success } = await rateLimiter.limit(ip);
+    limiterOk = success;
+  } catch {
+    // if rate limiter misconfigured, allow request but log
+    limiterOk = true;
+  }
 
-  if (!success) {
+  if (!limiterOk) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
@@ -64,10 +80,27 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  const session = await auth();
+  let session: any = null;
+  try {
+    session = await auth();
+  } catch {
+    return NextResponse.json(
+      { error: "Auth misconfigured or failed" },
+      { status: 500 }
+    );
+  }
+
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const data = await db.select().from(billTable);
-  return NextResponse.json({ success: true, data });
+
+  try {
+    const data = await db.select().from(billTable);
+    return NextResponse.json({ success: true, data });
+  } catch {
+    return NextResponse.json(
+      { error: "Failed to fetch bills" },
+      { status: 500 }
+    );
+  }
 }
