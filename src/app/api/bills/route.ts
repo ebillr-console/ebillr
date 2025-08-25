@@ -35,9 +35,8 @@ export async function POST(request: NextRequest) {
       // If rate limiter fails, allow request (fail-open)
     }
 
-    // Validate content type
-    const contentType = request.headers.get("content-type") || "";
-    if (!contentType.includes("application/json")) {
+    // ✅ Fixed: safe content-type check
+    if (!request.headers.get("content-type")?.includes("application/json")) {
       return NextResponse.json(
         { error: "Unsupported Media Type" },
         { status: 415 }
