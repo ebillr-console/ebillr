@@ -16,7 +16,7 @@ const billSchema = z.object({
 
 export async function POST(request: NextRequest) {
   // Require authenticated session
-  let session: any = null;
+  let session: Awaited<ReturnType<typeof auth>> | null = null;
   try {
     session = await auth();
   } catch {
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  let session: any = null;
+  let session: Awaited<ReturnType<typeof auth>> | null = null;
   try {
     session = await auth();
   } catch {
