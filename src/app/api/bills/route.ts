@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { bills as billTable } from "@/db/schema";
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { Session } from "next-auth";
 import { z } from "zod";
 
 import { rateLimiter } from "@/lib/rate-limit";
@@ -16,7 +17,7 @@ const billSchema = z.object({
 
 export async function POST(request: NextRequest) {
   // Require authenticated session
-  let session: Awaited<ReturnType<typeof auth>> | null = null;
+  let session: Session | null = null;
   try {
     session = await auth();
   } catch {
@@ -36,7 +37,6 @@ export async function POST(request: NextRequest) {
     const { success } = await rateLimiter.limit(ip);
     limiterOk = success;
   } catch {
-    // if rate limiter misconfigured, allow request but log
     limiterOk = true;
   }
 
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
-  let session: Awaited<ReturnType<typeof auth>> | null = null;
+  let session: Session | null = null;
   try {
     session = await auth();
   } catch {
