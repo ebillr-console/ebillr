@@ -6,7 +6,6 @@ import { z } from "zod";
 
 import { rateLimiter } from "@/lib/rate-limit";
 
-// Zod schema for validating bill data
 const billSchema = z.object({
   billNumber: z.number().int().positive(),
   customerName: z.string().min(1).max(200),
@@ -15,58 +14,63 @@ const billSchema = z.object({
   weight: z.string().min(1).max(50),
 });
 
-// POST → Create a new bill
 export async function POST(request: NextRequest) {
+  // Require authenticated session
+  let session: any = null;
   try {
-    // Ensure authenticated session
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    session = await auth();
+  } catch {
+    return NextResponse.json(
+      { error: "Auth misconfigured or failed" },
+      { status: 500 }
+    );
+  }
 
-    // Rate limit per IP
-    const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
-    try {
-      const { success } = await rateLimiter.limit(ip);
-      if (!success) {
-        return NextResponse.json({ error: "Too many requests" }, { status: 429 });
-      }
-    } catch {
-      // If rate limiter fails, allow request (fail-open)
-    }
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    // ✅ Fixed: safe content-type check
-    if (!request.headers.get("content-type")?.includes("application/json")) {
-      return NextResponse.json(
-        { error: "Unsupported Media Type" },
-        { status: 415 }
-      );
-    }
+  const ip = request.headers.get("x-forwarded-for") ?? "127.0.0.1";
+  let limiterOk = true;
+  try {
+    const { success } = await rateLimiter.limit(ip);
+    limiterOk = success;
+  } catch {
+    // if rate limiter misconfigured, allow request but log
+    limiterOk = true;
+  }
 
-    // Parse and validate request body
+  if (!limiterOk) {
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
+  // ✅ Fixed: safe content-type check
+  if (!request.headers.get("content-type")?.includes("application/json")) {
+    return NextResponse.json(
+      { error: "Unsupported Media Type" },
+      { status: 415 }
+    );
+  }
+
+  try {
     const body = await request.json();
     const parsed = billSchema.safeParse(body);
     if (!parsed.success) {
-      return NextResponse.json(
-        { error: "Invalid input", details: parsed.error.flatten() },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Invalid input" }, { status: 400 });
     }
 
     const { billNumber, customerName, date, phoneNumber, weight } = parsed.data;
 
-    // Insert into database
-    const [newBill] = await db.insert(billTable).values({
+    const newBill = await db.insert(billTable).values({
       billNumber,
       customerName,
       date,
       phoneNumber,
       weight,
-    }).returning();
+    });
 
     return NextResponse.json({ success: true, data: newBill }, { status: 201 });
-  } catch (err) {
-    console.error("POST /api/bills error:", err);
+  } catch {
     return NextResponse.json(
       { error: "Failed to create bill" },
       { status: 500 }
@@ -74,18 +78,25 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET → Fetch all bills
 export async function GET() {
+  let session: any = null;
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    session = await auth();
+  } catch {
+    return NextResponse.json(
+      { error: "Auth misconfigured or failed" },
+      { status: 500 }
+    );
+  }
 
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
     const data = await db.select().from(billTable);
-    return NextResponse.json({ success: true, data }, { status: 200 });
-  } catch (err) {
-    console.error("GET /api/bills error:", err);
+    return NextResponse.json({ success: true, data });
+  } catch {
     return NextResponse.json(
       { error: "Failed to fetch bills" },
       { status: 500 }
