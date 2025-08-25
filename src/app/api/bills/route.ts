@@ -30,8 +30,11 @@ export async function POST(request: NextRequest) {
 
   // Validate content type
   const contentType = request.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    return NextResponse.json({ error: "Unsupported Media Type" }, { status: 415 });
+  if (!contentType || !contentType.includes("application/json")) {
+    return NextResponse.json(
+      { error: "Unsupported Media Type" },
+      { status: 415 }
+    );
   }
 
   try {
